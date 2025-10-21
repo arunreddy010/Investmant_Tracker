@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clear-Cut Investment Tracker (INR)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        'primary': '#4f46e5',
+                        'success': '#10b981',
+                        'danger': '#ef4444',
+                        'card': '#ffffff',
+                        'background': '#f3f4f6',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #f3f4f6; font-family: 'Inter', sans-serif; }
+        .data-cell { padding: 10px 8px; border-bottom: 1px solid #e5e7eb; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div id="app" class="max-w-6xl mx-auto bg-card shadow-xl rounded-2xl p-6 md:p-10">
+        <h1 class="text-3xl font-extrabold text-gray-900 mb-6 border-b pb-3">🎯 Clear-Cut Investment Tracker (INR)</h1>
+        
+        <!-- 1. Global Setup -->
+        <div class="bg-gray-50 p-4 rounded-xl mb-8 shadow-inner flex flex-col sm:flex-row justify-between items-center">
+            <p class="text-lg font-semibold text-gray-700 mb-2 sm:mb-0">Current USD/INR Exchange Rate (Live Simulation):</p>
+            <div id="usd-inr-rate-display" class="text-2xl font-bold text-primary">Fetching...</div>
+            <input type="hidden" id="usd-inr-rate" value="0">
+        </div>
+
+        <!-- Loading Indicator -->
+        <div id="loading-spinner" class="text-center py-10 hidden">
+            <svg class="animate-spin h-8 w-8 text-primary mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p class="mt-2 text-gray-600">Fetching live market data...</p>
+        </div>
+
+        <!-- Error Message Box -->
+        <div id="error-message" class="hidden bg-danger/10 border border-danger text-danger p-3 rounded-lg mb-4 font-medium" role="alert">
+            <p>An error occurred while fetching data. Please check your Tickers or try again later.</p>
+        </div>
+        
+        <!-- 2. Investment Holdings Table -->
+        <div class="overflow-x-auto mb-10">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/5">Ticker</th>
+                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Units</th>
+                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Buy Currency</th>
+                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg. Cost (Local)</th>
+                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Live Price (Local)</th>
+                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-100">Total Cost (INR)</th>
+                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-100">Current Value (INR)</th>
+                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-100">Gain/Loss (INR)</th>
+                    </tr>
+                </thead>
+                <tbody id="holdings-body" class="bg-white divide-y divide-gray-200">
+                    <!-- Rows will be injected here -->
+                </tbody>
+            </table>
+        </div>
+
+        <button onclick="addRow()" class="bg-primary hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-150">
+            + Add Investment
+        </button>
+        <button onclick="calculateData()" class="bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-150 ml-4">
+            Get Live Data
+        </button>
+        
+        <!-- 3. Summary Metrics -->
+        <div class="mt-10 pt-6 border-t border-gray-200 grid grid-cols-1 md:grid-cols-3 gap-6">
+            
+            <div class="bg-indigo-50 p-5 rounded-xl shadow-lg">
+                <p class="text-sm font-medium text-primary uppercase">Total Invested</p>
+                <p id="summary-invested" class="text-3xl font-bold text-gray-900 mt-1">₹ 0.00</p>
+                <p class="text-xs text-gray-500 mt-1">Your capital commitment (F:F SUM)</p>
+            </div>
+
+            <div class="bg-indigo-50 p-5 rounded-xl shadow-lg">
+                <p class="text-sm font-medium text-primary uppercase">Total Current Value</p>
+                <p id="summary-value" class="text-3xl font-bold text-gray-900 mt-1">₹ 0.00</p>
+                <p class="text-xs text-gray-500 mt-1">What your portfolio is worth (G:G SUM)</p>
+            </div>
+
+            <div class="bg-indigo-50 p-5 rounded-xl shadow-lg">
+                <p class="text-sm font-medium text-primary uppercase">Net Profit / Loss</p>
+                <p id="summary-pnl" class="text-3xl font-bold text-gray-900 mt-1">₹ 0.00</p>
+                <p class="text-xs text-gray-500 mt-1">Total gains or losses (H:H SUM)</p>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const apiKey = ""; // API key is handled by the environment
+        const model = "gemini-2.5-flash-preview-09-2025";
+        const apiUrlBase = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+        let investments = [
+            { ticker: 'NSE:RELIANCE', units: 10, currency: 'INR', cost: 2500 },
+            { ticker: 'NASDAQ:AAPL', units: 5, currency: 'USD', cost: 180 },
+            { ticker: 'CURRENCY:XAUUSD', units: 1, currency: 'USD', cost: 2000 } // Gold Spot
+        ];
+        
+        const usdInrRateInput = document.getElementById('usd-inr-rate');
+        const holdingsBody = document.getElementById('holdings-body');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const errorMessage = document.getElementById('error-message');
+
+        /** Utility Functions **/
+        const formatCurrency = (amount) => {
+            if (typeof amount !== 'number' || isNaN(amount)) return '₹ --';
+            return `₹ ${amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`;
+        };
+
+        const formatLocalPrice = (amount, currency) => {
+            if (typeof amount !== 'number' || isNaN(amount)) return '--';
+            const symbol = currency === 'USD' ? '$' : '₹';
+            return `${symbol} ${amount.toFixed(2)}`;
+        };
+
+        const showLoading = (show) => {
+            loadingSpinner.classList.toggle('hidden', !show);
+        };
+        
+        const showError = (show) => {
+            errorMessage.classList.toggle('hidden', !show);
+        };
+
+        /** API Interaction (Simulating GOOGLEFINANCE) **/
+        
+        // This function fetches the live data (USD/INR rate and stock prices)
+        async function fetchLiveExchangeRate() {
+            const systemPrompt = "Provide ONLY the numerical value for the current USD to INR exchange rate, rounded to two decimal places. Do not include any text, currency symbols, or formatting.";
+            const userQuery = "What is the current USD to INR exchange rate?";
+
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                tools: [{ "google_search": {} }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+            };
+
+            for (let attempt = 0; attempt < 3; attempt++) {
+                try {
+                    const response = await fetch(apiUrlBase, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    
+                    const result = await response.json();
+                    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                    const rate = parseFloat(text);
+                    
+                    if (rate && !isNaN(rate)) {
+                        usdInrRateInput.value = rate;
+                        document.getElementById('usd-inr-rate-display').textContent = `₹ ${rate.toFixed(2)}`;
+                        return rate;
+                    }
+                } catch (error) {
+                    console.error(`Attempt ${attempt + 1}: Error fetching exchange rate.`, error);
+                    // Exponential backoff
+                    await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt)));
+                }
+            }
+            console.error("Failed to fetch exchange rate after multiple retries. Using fallback.");
+            // Fallback value if API fails
+            return 83.00; 
+        }
+
+        async function fetchLivePrices(tickers) {
+            const systemPrompt = "For each ticker provided, find its current market price. Present the results as a comma-separated list of values: Ticker1,Price1,Ticker2,Price2, etc. Do not include any text, currency symbols, or formatting. If a price cannot be found, use 0. Example: NASDAQ:AAPL,175.50,NSE:RELIANCE,2900.25";
+            const userQuery = `Find the current market prices for the following financial tickers: ${tickers.join(', ')}`;
+            
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                tools: [{ "google_search": {} }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+            };
+
+            for (let attempt = 0; attempt < 3; attempt++) {
+                try {
+                    const response = await fetch(apiUrlBase, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    
+                    const result = await response.json();
+                    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                    
+                    if (text) {
+                        const priceMap = {};
+                        const parts = text.split(',').map(p => p.trim());
+                        
+                        for (let i = 0; i < parts.length; i += 2) {
+                            const ticker = parts[i];
+                            const price = parseFloat(parts[i+1]);
+                            if (ticker && !isNaN(price)) {
+                                priceMap[ticker.toUpperCase()] = price;
+                            }
+                        }
+                        return priceMap;
+                    }
+                } catch (error) {
+                    console.error(`Attempt ${attempt + 1}: Error fetching prices.`, error);
+                    await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt)));
+                }
+            }
+            return {}; // Return empty map on failure
+        }
+
+
+        /** Core Logic **/
+
+        // 1. Calculate a single row's metrics
+        function calculateRow(item, usdInrRate) {
+            const { units, cost, price, currency } = item;
+            
+            // IF(C3="USD",$B$1, 1) part of the formula
+            const fxMultiplier = currency === 'USD' ? usdInrRate : 1;
+            
+            // F: Total Cost (INR) = B3 * D3 * FX_Multiplier
+            const totalCost = units * cost * fxMultiplier;
+            
+            // G: Current Value (INR) = B3 * E3 * FX_Multiplier
+            const currentValue = units * price * fxMultiplier;
+            
+            // H: Gain/Loss (INR) = G3 - F3
+            const gainLoss = currentValue - totalCost;
+
+            return { totalCost, currentValue, gainLoss };
+        }
+
+        // 2. Render the input and calculated data table
+        function renderTable() {
+            holdingsBody.innerHTML = '';
+            investments.forEach((item, index) => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50';
+                tr.innerHTML = `
+                    <!-- A: Ticker -->
+                    <td class="data-cell text-sm font-medium text-gray-900">
+                        <input type="text" class="w-full p-1 border rounded" value="${item.ticker}" onchange="updateInvestment(${index}, 'ticker', this.value)">
+                    </td>
+                    <!-- B: Units -->
+                    <td class="data-cell text-sm text-gray-500">
+                        <input type="number" class="w-full p-1 border rounded" value="${item.units}" min="0" onchange="updateInvestment(${index}, 'units', parseFloat(this.value) || 0)">
+                    </td>
+                    <!-- C: Buy Currency -->
+                    <td class="data-cell text-sm text-gray-500">
+                        <select class="w-full p-1 border rounded" onchange="updateInvestment(${index}, 'currency', this.value)">
+                            <option value="INR" ${item.currency === 'INR' ? 'selected' : ''}>INR</option>
+                            <option value="USD" ${item.currency === 'USD' ? 'selected' : ''}>USD</option>
+                        </select>
+                    </td>
+                    <!-- D: Avg. Cost/Unit (Local) -->
+                    <td class="data-cell text-sm text-gray-500">
+                        <input type="number" class="w-full p-1 border rounded" value="${item.cost}" min="0" onchange="updateInvestment(${index}, 'cost', parseFloat(this.value) || 0)">
+                    </td>
+                    <!-- E: Current Price (Local) - AUTOMATED -->
+                    <td class="data-cell text-sm text-gray-700 font-semibold">${formatLocalPrice(item.price, item.currency)}</td>
+                    <!-- F: Total Cost (INR) - CALCULATED -->
+                    <td class="data-cell text-sm font-medium bg-gray-100 text-gray-700">${formatCurrency(item.totalCost)}</td>
+                    <!-- G: Current Value (INR) - CALCULATED -->
+                    <td class="data-cell text-sm font-medium bg-gray-100 text-gray-700">${formatCurrency(item.currentValue)}</td>
+                    <!-- H: Gain/Loss (INR) - CALCULATED -->
+                    <td class="data-cell text-sm font-bold bg-gray-100 ${item.gainLoss > 0 ? 'text-success' : (item.gainLoss < 0 ? 'text-danger' : 'text-gray-700')}">
+                        ${formatCurrency(item.gainLoss)}
+                    </td>
+                `;
+                holdingsBody.appendChild(tr);
+            });
+            updateSummary();
+        }
+
+        // 3. Update the summary totals
+        function updateSummary() {
+            const totalInvested = investments.reduce((sum, item) => sum + item.totalCost, 0);
+            const totalValue = investments.reduce((sum, item) => sum + item.currentValue, 0);
+            const totalPNL = totalValue - totalInvested;
+
+            document.getElementById('summary-invested').textContent = formatCurrency(totalInvested);
+            document.getElementById('summary-value').textContent = formatCurrency(totalValue);
+            
+            const pnlElement = document.getElementById('summary-pnl');
+            pnlElement.textContent = formatCurrency(totalPNL);
+            pnlElement.className = `text-3xl font-bold mt-1 ${totalPNL > 0 ? 'text-success' : (totalPNL < 0 ? 'text-danger' : 'text-gray-900')}`;
+        }
+
+        // 4. Handle investment data updates
+        function updateInvestment(index, field, value) {
+            investments[index][field] = value;
+            // Recalculate if a cost/unit or units change, even without live price
+            const rate = parseFloat(usdInrRateInput.value) || 1;
+            if (investments[index].price) { // Only calculate if price is known
+                const calculated = calculateRow(investments[index], rate);
+                Object.assign(investments[index], calculated);
+            }
+            renderTable();
+        }
+
+        function addRow() {
+            investments.push({ ticker: '', units: 0, currency: 'INR', cost: 0, price: 0, totalCost: 0, currentValue: 0, gainLoss: 0 });
+            renderTable();
+        }
+
+        // 5. Main function to fetch all data and update the entire sheet
+        async function calculateData() {
+            showError(false);
+            showLoading(true);
+
+            const usdInrRate = await fetchLiveExchangeRate();
+            if (!usdInrRate) {
+                showLoading(false);
+                showError(true);
+                return;
+            }
+
+            const tickers = investments.map(i => i.ticker).filter(t => t.trim() !== '');
+            const priceMap = await fetchLivePrices(tickers);
+            
+            investments = investments.map(item => {
+                let livePrice = 0;
+                
+                // Try to match the ticker from the API results
+                if (priceMap[item.ticker.toUpperCase()]) {
+                    livePrice = priceMap[item.ticker.toUpperCase()];
+                } 
+                
+                // Fallback: If price is 0 (or not found), use the last known cost to prevent total disruption
+                item.price = livePrice > 0 ? livePrice : item.cost;
+                
+                const calculated = calculateRow(item, usdInrRate);
+                return { ...item, ...calculated };
+            });
+
+            showLoading(false);
+            renderTable();
+        }
+
+
+        // Initialization
+        window.onload = function() {
+            renderTable();
+            // Automatically fetch data on load
+            calculateData(); 
+        };
+
+    </script>
+</body>
+</html>
