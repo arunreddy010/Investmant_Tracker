@@ -107,7 +107,7 @@
     </div>
 
     <script>
-        const apiKey = ""; // API key is handled by the environment
+        const apiKey = import.meta.env.API_KEY || ""; // API key is handled by the environment
         const model = "gemini-2.5-flash-preview-09-2025";
         const apiUrlBase = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
